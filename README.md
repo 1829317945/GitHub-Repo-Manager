@@ -1,6 +1,3 @@
-这份 README 旨在突出工具的实用性与高效性，排版直观，方便用户快速上手。
-
----
 
 # GitHub Repo Manager (CLI)
 
@@ -21,13 +18,13 @@
 
 ## 📦 安装与使用
 
-# 克隆仓库
+1. 克隆仓库
 git clone git@github.com:1829317945/GitHub-Repo-Manager.git
 
-# 进入目录
+2. 进入目录
 cd GitHub-Repo-Manager
 
-# 赋予执行权限并运行
+3. 赋予执行权限并运行
 chmod +x manager.sh
 ./manager.sh
 
