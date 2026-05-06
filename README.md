@@ -18,15 +18,19 @@
 
 ## 📦 安装与使用
 
-1. 克隆仓库
+1. **克隆仓库**
+```bash
 git clone git@github.com:1829317945/GitHub-Repo-Manager.git
-
-2. 进入目录
+```
+2. **进入目录**
+```bash
 cd GitHub-Repo-Manager
-
-3. 赋予执行权限并运行
+```
+3. **赋予执行权限并运行**
+```bash
 chmod +x manager.sh
 ./manager.sh
+```
 
 ## 🖥️ 菜单预览
 
