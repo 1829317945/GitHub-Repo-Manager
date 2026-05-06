@@ -1,12 +1,20 @@
 #!/bin/bash
-
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[1;34m'
 NC='\033[0m'
+if ! command -v gh &> /dev/null; then
+    echo -e "${RED}错误：未安装 gh CLI，请先安装。${NC}"
+    exit 1
+else
 
+    if ! gh auth status &> /dev/null; then 
+        echo -e "${RED}错误：gh未登录，请先执行 gh auth login。${NC}"
+        exit 1
+    fi
+fi
 # --- 内部函数：显示美化的仓库列表 ---
 function list_repos() {
     echo -e "${YELLOW}--- 当前仓库清单 ---${NC}"
@@ -18,7 +26,6 @@ function list_repos() {
 
 # --- 核心函数：删除仓库 (支持方向键/手动输入) ---
 function delete_repo() {
-    # 检查是否安装了 fzf
     if command -v fzf &> /dev/null; then
         echo -e "${BLUE}检测到 fzf，开启交互式选择模式... (按 ESC 退出选择)${NC}"
         # 让用户通过方向键搜索和选择
@@ -31,10 +38,15 @@ function delete_repo() {
     else
         # 如果没有 fzf，退回到手动列表和输入
         list_repos
-        echo -e "${RED}请输入要删除的仓库全名:${NC}"
+        echo -e "${RED}请输入要删除的仓库全名:(按 ESC 取消删除)${NC}"
         read -p ">> " REPO
+        if [ -z "$REPO" ]; then
+            echo "取消删除。"
+            return 
+        fi
+        
     fi
-
+   
     # 最后的死亡确认
     if [ -n "$REPO" ]; then
         echo -e "${RED}！危险操作！确认删除仓库 '$REPO' 吗？(y/N)${NC}"
@@ -49,20 +61,49 @@ function delete_repo() {
 
 # --- 核心函数：改名并自动重连 ---
 function rename_and_relink() {
-    if [ ! -d ".git" ]; then
-        echo -e "${RED}错误：请进入该项目的本地目录执行改名。${NC}"
-        return
+    local current_repo new_url owner repo_to_rename original_url
+    owner=$(gh api user -q '.login')
+    if [ -d ".git" ] && git remote get-url origin &> /dev/null; then
+        original_url=$(git remote get-url origin)
+        CURRENT_REMOTE=$(git remote get-url origin | sed 's|.*[/:]||; s|\.git$||')
+        echo -e "${BLUE}当前目录关联的远程仓库：${GREEN}$CURRENT_REMOTE${NC}"
+        read -p "是否修改当前目录关联的仓库名称？(y/N): " USE_CURRENT
+        if [[ "USE_CURRENT" == "y" ]] || [[ "USE_CURRENT" == "Y" ]]; then
+            repo_to_rename="$owner/$CURRENT_REMOTE"
+        fi
+    fi 
+    
+    if [ -z "$repo_to_rename" ]; then
+        if command -v fzf &> /dev/null; then 
+            echo -e "${BLUE}检测到 fzf，开启交互式选择模式...(按 ESC 推出选择)${NC}"
+            repo_to_rename=$(gh repo list --limit 100 --json nameWithOwner \
+                -q '.[].nameWithOwner' | fzf --height 40% --border \
+                --prompt="选择要改名的仓库: ") || true
+        else
+            list_repos
+            read -p "请输入要改名的仓库名(不含owner)：" repo_to_rename
+            [[ "$repo_to_rename" != */* ]] && repo_to_rename="$owner/$repo_to_rename"
+        fi
     fi
-
-    CURRENT_REMOTE=$(basename `git rev-parse --show-toplevel`)
-    echo -e "${BLUE}当前识别到的远程仓库名：${GREEN}$CURRENT_REMOTE${NC}"
-    read -p "请输入新的仓库名称: " NEW_NAME
-
-    if [ -n "$NEW_NAME" ]; then
-        # gh 会自动更新本地的 remote url
-        gh repo rename "$NEW_NAME" --yes && \
-        echo -e "${GREEN}远程已更名，本地关联已自动指向: $(git remote get-url origin)${NC}"
+    [ -z "$repo_to_rename" ] && echo "取消操作。" && return
+    # 输入新名称
+    read -p "请输入新的仓库名称：" NEW_NAME
+    [ -z "$NEW_NAME" ] && echo "取消操作。" && return # ── 重新关联到原来的本地仓库 ──
+    if [ -n "$original_url" ]; then
+        new_url="https://github.com/$owner/$NEW_NAME.git"
+        git remote set-url origin "$new_url"
+        echo -e "${GREEN}本地关联已更新：$new_url${NC}"
     fi
+    gh repo rename "$NEW_NAME" --repo "$repo_to_rename" --yes || return
+    echo -e "${GREEN}仓库已成功改名为：$NEW_NAME ${NC}"
+    if [ -n "$original_url" ]; then
+        new_url="git@github.com:$owner/$NEW_NAME.git"
+        git remote set-url origin "$new_url"
+        echo -e "${GREEN}本地关联已更新：$new_url${NC}"
+    fi
+        
+        
+   
 }
 
 # --- 主循环菜单 ---
