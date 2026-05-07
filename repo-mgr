@@ -106,20 +106,66 @@ function rename_and_relink() {
     done < <(find "$HOME" -name "config" -path "*/.git/config" 2>/dev/null)
 }
 
+git_auto_init(){
+ REPO_NAME=$(basename "$(pwd)")
+if [ -d ".git" ];then
+echo "This is already a git repo"
+else
+echo "--- Local Init: $REPO_NAME ---"
+git init
+fi
+echo "----Creating remote repository on GitHub..."
+if gh repo view "$REPO_NAME" &> /dev/null; then
+echo "远程仓库已连接"
+else
+gh repo create "$REPO_NAME" --public --source=. --remote=origin > /dev/null
+if [ $? -ne 0 ];then 
+echo "Error: Failed to create remote repo"
+return 1
+fi
+echo "Successfully created and linked the remote!"
+fi
+# 可选：进行首次提交
+    read -n 1 -p  "是否进行首次提交并推送到 main 分支? (y/n): " confirm
+echo ""
+    if [[ "${confirm,,}" == "y" ]]; then
+
+# 确保有东西可以提交
+    if [ -z "$(ls -A | grep -v '.git')" ];then
+echo "# $REPO_NAME" > README.md
+    fi
+        git add . > /dev/null
+        git commit -m "Initial commit" > /dev/null
+        git branch -M main > /dev/null 
+        git push -u origin main > /dev/null
+if [ $? -ne 0 ];then
+echo "推送失败!"
+else
+echo "推送成功!"
+fi
+    
+else
+echo "Operation is cancelled!"
+fi
+}
+
 # --- 主循环菜单 ---
 while true; do
     echo -e "\n${BLUE}==== GitHub 管理工具 ====${NC}"
     echo "1) 查看仓库列表 (List)"
     echo "2) 删除仓库 (Delete - 自动适配方向键)"
     echo "3) 修改仓库名并重连 (Rename)"
-    echo "4) 退出 (Exit)"
-    read -p "请选择操作 [1-4]: " OPT
+    echo "4) 初始化本地仓库创建连接远程仓库，并执行第一次提交"
+    echo "5) 退出 (Exit)"
+
+    read -p "请选择操作 [1-5]: " OPT
 
     case $OPT in
         1) list_repos ;;
         2) delete_repo ;;
         3) rename_and_relink ;;
-        4) break ;;
+        4) git_auto_init ;; 
+        5) break ;;
         *) echo -e "${RED}无效选项${NC}" ;;
     esac
 done
